@@ -122,6 +122,8 @@
   .setrow .sn{font-family:var(--mono);color:var(--muted);font-size:13px;text-align:center}
   .setrow input{padding:8px}
   .savebtn{background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:8px 10px;font-weight:600;font-size:13px}
+  .addset{width:100%;margin-top:4px;background:transparent;border:1px dashed var(--line);border-radius:10px;color:var(--muted);font-weight:600;font-size:13px;padding:10px}
+  .addset:active{transform:translateY(1px)}
   .savebtn:active{transform:translateY(1px)}
   .logged{display:grid;grid-template-columns:26px 1fr auto;gap:7px;align-items:center;background:var(--panel2);border-radius:9px;padding:8px 10px;margin-bottom:7px}
   .logged .val{font-family:var(--mono);font-size:14px}
@@ -258,6 +260,27 @@ const EXERCISE_INFO = {
 const nextDay = d => (d==="A"?"B":d==="B"?"C":"A");
 const fmt = n => (Math.round(Number(n)*100)/100).toString();
 const todayStr = () => { const d=new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`; };
+
+let _beepURI=null;
+function beepDataURI(){
+  if(_beepURI) return _beepURI;
+  const sr=44100, seq=[{f:880,d:0.20},{f:0,d:0.06},{f:1175,d:0.26}];
+  let total=0; seq.forEach(s=>total+=Math.floor(s.d*sr));
+  const buf=new Float32Array(total); let idx=0;
+  seq.forEach(s=>{ const n=Math.floor(s.d*sr); for(let i=0;i<n;i++){ let v=0;
+    if(s.f>0){ const env=Math.min(1,i/(0.01*sr))*Math.min(1,(n-i)/(0.01*sr)); v=Math.sin(2*Math.PI*s.f*i/sr)*0.7*env; }
+    buf[idx++]=v; } });
+  const bytes=44+buf.length*2, ab=new ArrayBuffer(bytes), dv=new DataView(ab);
+  const wr=(o,s)=>{ for(let i=0;i<s.length;i++) dv.setUint8(o+i,s.charCodeAt(i)); };
+  wr(0,"RIFF"); dv.setUint32(4,bytes-8,true); wr(8,"WAVE"); wr(12,"fmt ");
+  dv.setUint32(16,16,true); dv.setUint16(20,1,true); dv.setUint16(22,1,true);
+  dv.setUint32(24,sr,true); dv.setUint32(28,sr*2,true); dv.setUint16(32,2,true); dv.setUint16(34,16,true);
+  wr(36,"data"); dv.setUint32(40,buf.length*2,true);
+  let o=44; for(let i=0;i<buf.length;i++){ const c=Math.max(-1,Math.min(1,buf[i])); dv.setInt16(o,c*32767,true); o+=2; }
+  let bin=""; const u8=new Uint8Array(ab); for(let i=0;i<u8.length;i++) bin+=String.fromCharCode(u8[i]);
+  _beepURI="data:audio/wav;base64,"+btoa(bin);
+  return _beepURI;
+}
 
 const configured = !SUPABASE_URL.includes("JOUW-PROJECT") && !SUPABASE_ANON_KEY.includes("JOUW-ANON");
 const db = configured ? window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY) : null;
@@ -519,8 +542,12 @@ function RestTimer(){
   const [now,setNow]=useState(Date.now());
   const [done,setDone]=useState(false);
   const [sets,setSets]=useState(0);
-  const audioRef=React.useRef(null);
+  const beepRef=React.useRef(null);
   const firedRef=React.useRef(false);
+
+  function ensureBeep(){ if(!beepRef.current){ const a=new Audio(beepDataURI()); a.preload="auto"; beepRef.current=a; } return beepRef.current; }
+  function unlockBeep(){ const a=ensureBeep(); try{ a.volume=0; const p=a.play(); if(p&&p.then){ p.then(()=>{ a.pause(); a.currentTime=0; a.volume=1; }).catch(()=>{ a.volume=1; }); } else { a.pause(); a.currentTime=0; a.volume=1; } }catch(e){} }
+  function playBeep(){ const a=ensureBeep(); try{ a.currentTime=0; a.volume=1; const p=a.play(); if(p&&p.catch) p.catch(()=>{}); }catch(e){} }
 
   useEffect(()=>{
     if(endAt==null) return;
@@ -534,24 +561,13 @@ function RestTimer(){
   useEffect(()=>{
     if(endAt!=null && remaining===0 && !firedRef.current){
       firedRef.current=true; setDone(true);
-      try{
-        const ctx=audioRef.current;
-        if(ctx){
-          const beep=(t,f)=>{ const o=ctx.createOscillator(),g=ctx.createGain(); o.connect(g); g.connect(ctx.destination);
-            o.frequency.value=f; g.gain.setValueAtTime(0.0001,t); g.gain.exponentialRampToValueAtTime(0.35,t+0.02);
-            g.gain.exponentialRampToValueAtTime(0.0001,t+0.35); o.start(t); o.stop(t+0.4); };
-          beep(ctx.currentTime,880); beep(ctx.currentTime+0.45,1175);
-        }
-      }catch(e){}
+      playBeep();
       if(navigator.vibrate){ try{ navigator.vibrate([250,120,250]); }catch(e){} }
     }
   },[remaining,endAt]);
 
   const tap=()=>{
-    try{
-      if(!audioRef.current){ const AC=window.AudioContext||window.webkitAudioContext; if(AC) audioRef.current=new AC(); }
-      if(audioRef.current && audioRef.current.state==="suspended") audioRef.current.resume();
-    }catch(e){}
+    unlockBeep();
     firedRef.current=false; setDone(false);
     setSets(s=>s+1);
     setNow(Date.now()); setEndAt(Date.now()+dur*1000);
@@ -595,7 +611,10 @@ function ExerciseCard({ex,week,session,logs,checked,muscle,onLog,onDel,onToggle}
   const rirDefault=parseInt(rir,10);
   const [draft,setDraft]=useState({});
   const [showInfo,setShowInfo]=useState(false);
+  const [extra,setExtra]=useState(0);
   const info=EXERCISE_INFO[ex.name];
+  const maxLogged=todays.reduce((m,t)=>Math.max(m,t.set_number),0);
+  const rowCount=Math.max(target+extra, maxLogged);
   const upd=(n,f,v)=>setDraft(d=>({...d,[n]:{...(d[n]||{}),[f]:v}}));
   const save=(n)=>{
     const d=draft[n]||{};
@@ -624,11 +643,11 @@ function ExerciseCard({ex,week,session,logs,checked,muscle,onLog,onDel,onToggle}
       {!active ? <div className="hint">Check in om je sets te loggen.</div> : (
         <>
           <div className="colhead"><span>#</span><span>kg</span><span>reps</span><span>rir</span><span></span></div>
-          {Array.from({length:target}).map((_,i)=>{
+          {Array.from({length:rowCount}).map((_,i)=>{
             const n=i+1; const done=todays.find(t=>t.set_number===n);
             if(done) return (
               <div className="logged" key={n}>
-                <span className="sn mono">{n}</span>
+                <span className="sn mono">{n}{n>target?" +":""}</span>
                 <span className="val">{fmt(done.weight)} kg × {done.reps} <span className="rir">@ {done.rir} RIR</span></span>
                 <button className="del" onClick={()=>onDel(done.id)} aria-label="Verwijder set">✕</button>
               </div>
@@ -636,7 +655,7 @@ function ExerciseCard({ex,week,session,logs,checked,muscle,onLog,onDel,onToggle}
             const d=draft[n]||{};
             return (
               <div className="setrow" key={n}>
-                <span className="sn">{n}</span>
+                <span className="sn">{n}{n>target?" +":""}</span>
                 <input inputMode="decimal" placeholder={sug!=null?fmt(sug):"kg"} value={d.weight??""} onChange={e=>upd(n,"weight",e.target.value)} aria-label="gewicht"/>
                 <input inputMode="numeric" placeholder={String(ex.rep_min)} value={d.reps??""} onChange={e=>upd(n,"reps",e.target.value)} aria-label="reps"/>
                 <input inputMode="numeric" placeholder={String(rirDefault)} value={d.rir??""} onChange={e=>upd(n,"rir",e.target.value)} aria-label="rir"/>
@@ -644,6 +663,7 @@ function ExerciseCard({ex,week,session,logs,checked,muscle,onLog,onDel,onToggle}
               </div>
             );
           })}
+          <button className="addset" onClick={()=>setExtra(e=>e+1)}>+ Extra set</button>
         </>
       )}
     </div>
