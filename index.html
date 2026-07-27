@@ -41,8 +41,8 @@
     background:rgba(10,12,16,.86);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);border-top:1px solid var(--line);
     padding:8px 8px calc(8px + env(safe-area-inset-bottom))}
   .bottomnav-inner{display:flex;width:100%;max-width:560px}
-  .navbtn{flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;padding:6px 2px;color:var(--muted);font-size:11px;font-weight:600}
-  .navbtn svg{width:23px;height:23px;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+  .navbtn{flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;padding:6px 1px;color:var(--muted);font-size:10px;font-weight:600}
+  .navbtn svg{width:22px;height:22px;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
   .navbtn.on{color:var(--accent)}
   .tabs{display:none}
   .wrap.has-timer{padding-bottom:calc(192px + env(safe-area-inset-bottom))}
@@ -68,6 +68,8 @@
   .rt-bar>i{display:block;height:100%;background:var(--accent);transition:width .25s linear}
   .resttimer.done .rt-main{border-color:var(--good);background:rgba(79,191,154,.16);animation:pulse 1.1s ease-in-out 3}
   .resttimer.done .rt-time{color:var(--good)}
+  .resttimer.paused .rt-main{border-color:var(--muted)}
+  .resttimer.paused .rt-time{color:var(--muted)}
   .tabs button.on{background:var(--panel2);color:var(--text)}
 
   .dayhead{display:flex;align-items:center;gap:10px;margin:18px 2px 2px}
@@ -169,7 +171,32 @@
   .logbw{display:grid;grid-template-columns:1fr auto;gap:8px;margin-top:14px}
   .bwrow{display:grid;grid-template-columns:1fr auto auto;gap:10px;align-items:center;background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:11px 14px;margin-bottom:8px}
   .bw-date{font-size:13px;color:var(--muted)}
+  .bw-time{color:var(--muted);opacity:.7;font-family:var(--mono);font-size:12px}
   .bw-val{font-family:var(--mono);font-weight:700;font-size:15px}
+  .nutcard{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:18px;margin-top:6px}
+  .nut-big .nv{font-family:var(--display);font-weight:700;font-size:32px;line-height:1}
+  .nut-big .nu{color:var(--muted);font-size:15px;font-weight:500}
+  .nutbar{height:9px;background:var(--bg);border:1px solid var(--line);border-radius:6px;overflow:hidden;margin-top:8px}
+  .nutbar>i{display:block;height:100%;background:var(--accent);transition:width .3s ease}
+  .nutbar.prot>i{background:var(--good)}
+  .macros{display:flex;gap:16px;margin-top:14px;font-size:12.5px;color:var(--muted);flex-wrap:wrap}
+  .macros b{color:var(--text);font-family:var(--mono)}
+  .planline{font-size:12px;color:var(--muted);margin-top:12px;font-family:var(--mono)}
+  .food-item{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:12px 14px;margin-bottom:10px}
+  .food-item.on{border-color:var(--good)}
+  .fi-top{display:flex;align-items:center;gap:10px}
+  .fi-name{flex:1;font-weight:600;font-size:15px}
+  .fi-bot{display:flex;align-items:center;gap:10px;margin-top:10px}
+  .fi-macros{flex:1;font-family:var(--mono);font-size:12.5px;color:var(--muted)}
+  .fi-port{display:flex;align-items:center;gap:8px}
+  .fi-port button{width:32px;height:32px;border:1px solid var(--line);border-radius:9px;background:var(--panel2);color:var(--text);font-size:19px;font-weight:700;line-height:1}
+  .fi-port button:active{transform:translateY(1px)}
+  .fi-port span{font-family:var(--mono);font-size:14px;min-width:32px;text-align:center}
+  .addfood{display:grid;grid-template-columns:1fr auto;gap:8px}
+  .lib{margin-top:8px}
+  .lib-row{display:flex;align-items:center;gap:10px;background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin-bottom:8px}
+  .lib-name{flex:1;font-size:14px}
+  .lib-mac{font-family:var(--mono);font-size:12px;color:var(--muted);white-space:nowrap}
 
   /* schema/import */
   .imp textarea{min-height:180px;font-size:12.5px;line-height:1.5;resize:vertical}
@@ -224,6 +251,10 @@ const SUPABASE_ANON_KEY = "sb_publishable_npaSadAbv9DWmBHtpJAe5A_RQLsCAOS";
 /* ==== 2. Je bulk-doelen (pas gerust aan) ==== */
 const START_WEIGHT = 100;   // startgewicht bulk
 const GOAL_WEIGHT  = 105;   // doelgewicht
+
+/* ==== Voedingsdoelen per dag (pas gerust aan) ==== */
+const CAL_TARGET     = 3500; // kcal
+const PROTEIN_TARGET = 190;  // gram eiwit
 /* ============================================= */
 
 const RIR_BY_WEEK = {1:"3", 2:"2–3", 3:"2", 4:"1", 5:"0–1", 6:"4–5"};
@@ -258,7 +289,8 @@ const EXERCISE_INFO = {
   "Calf raise":"Kom zo hoog mogelijk op je tenen met een korte knijp bovenaan; zak diep tot je rek in je kuiten voelt. Rustig tempo, geen zwaai.",
 };
 const nextDay = d => (d==="A"?"B":d==="B"?"C":"A");
-const fmt = n => (Math.round(Number(n)*100)/100).toString();
+const fmt = n => (Math.round(Number(n)*100)/100).toString().replace(".",",");
+const parseNum = v => parseFloat(String(v).replace(",","."));
 const todayStr = () => { const d=new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`; };
 
 let _beepURI=null;
@@ -321,6 +353,8 @@ function App(){
   const [session,setSession]=useState(null);
   const [checks,setChecks]=useState([]);
   const [bw,setBw]=useState([]);
+  const [recipes,setRecipes]=useState([]);
+  const [foods,setFoods]=useState([]);
   const [tab,setTab]=useState("vandaag");
   const [showGlossary,setShowGlossary]=useState(false);
   const [selDay,setSelDay]=useState(null);
@@ -345,8 +379,13 @@ function App(){
       }
       const b = await db.from("bodyweight_logs").select("*").order("date");
       if(b.error) throw b.error;
+      const rc = await db.from("recipes").select("*").order("name");
+      if(rc.error) throw rc.error;
+      const fd = await db.from("food_log").select("*").eq("date",todayStr()).order("id");
+      if(fd.error) throw fd.error;
       setMuscles(mg.data||[]); setExercises(ex.data||[]); setMeso(m); setLogs(lg);
       setSessions(allSess); setSession(sess); setChecks(chk); setBw(b.data||[]);
+      setRecipes(rc.data||[]); setFoods(fd.data||[]);
       setSt({loading:false,error:null});
     }catch(e){ setSt({loading:false,error:e.message||String(e)}); }
   }
@@ -405,12 +444,26 @@ function App(){
   async function logBodyweight(weight){
     const d=todayStr();
     const ex=bw.find(x=>x.date===d);
-    const r = ex ? await db.from("bodyweight_logs").update({weight}).eq("id",ex.id)
-                 : await db.from("bodyweight_logs").insert({date:d,weight});
+    const nowISO=new Date().toISOString();
+    const r = ex ? await db.from("bodyweight_logs").update({weight,logged_at:nowISO}).eq("id",ex.id)
+                 : await db.from("bodyweight_logs").insert({date:d,weight,logged_at:nowISO});
     if(r.error){ alert("Gewicht opslaan mislukt: "+r.error.message); return; }
     await loadAll();
   }
   async function delBodyweight(id){ await db.from("bodyweight_logs").delete().eq("id",id); await loadAll(); }
+  async function addFood(r){
+    const rr=await db.from("food_log").insert({date:todayStr(),recipe_id:r.id,name:r.name,emoji:r.emoji,portions:1,
+      calories:r.calories,protein:r.protein,carbs:r.carbs,fat:r.fat,fiber:r.fiber,checked:false});
+    if(rr.error){ alert("Toevoegen mislukt: "+rr.error.message); return; }
+    await loadAll();
+  }
+  async function toggleFood(f){ await db.from("food_log").update({checked:!f.checked}).eq("id",f.id); await loadAll(); }
+  async function changePortions(f,delta){
+    const p=Math.max(0.5, Math.round((Number(f.portions)+delta)*2)/2);
+    await db.from("food_log").update({portions:p}).eq("id",f.id); await loadAll();
+  }
+  async function delFood(id){ await db.from("food_log").delete().eq("id",id); await loadAll(); }
+  async function delRecipe(id){ if(!window.confirm("Recept verwijderen uit je bibliotheek?")) return; await db.from("recipes").delete().eq("id",id); await loadAll(); }
 
   if(!configured) return <Setup/>;
   if(st.loading) return <div className="center">Laden…</div>;
@@ -499,6 +552,8 @@ function App(){
 
       {tab==="voortgang" && <Progress muscles={muscles} exercises={exercises} logs={logs} meso={meso}/>}
       {tab==="gewicht" && <Gewicht bw={bw} onLog={logBodyweight} onDel={delBodyweight}/>}
+      {tab==="voeding" && <Voeding recipes={recipes} foods={foods} db={db} reload={loadAll}
+        onAdd={addFood} onToggle={toggleFood} onPortions={changePortions} onDel={delFood} onDelRecipe={delRecipe}/>}
       {tab==="schema" && <SchemaTab muscles={muscles} exercises={exercises} db={db} reload={loadAll}/>}
 
       {session && <RestTimer/>}
@@ -516,6 +571,10 @@ function App(){
           <button className={"navbtn"+(tab==="gewicht"?" on":"")} onClick={()=>setTab("gewicht")}>
             <svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="3"/><path d="M12 8v3M9.5 10.5L12 8l2.5 2.5"/></svg>
             <span>Gewicht</span>
+          </button>
+          <button className={"navbtn"+(tab==="voeding"?" on":"")} onClick={()=>setTab("voeding")}>
+            <svg viewBox="0 0 24 24"><path d="M6 3v7a2 2 0 002 2v9M8 3v5M18 3s-2 2-2 5 2 3 2 3v8"/></svg>
+            <span>Voeding</span>
           </button>
           <button className={"navbtn"+(tab==="schema"?" on":"")} onClick={()=>setTab("schema")}>
             <svg viewBox="0 0 24 24"><path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/></svg>
@@ -538,9 +597,11 @@ function Timer({start}){
 /* ---------- Rusttimer ---------- */
 function RestTimer(){
   const [dur,setDur]=useState(120);
+  const [phase,setPhase]=useState("idle");   // idle | running | paused | done
   const [endAt,setEndAt]=useState(null);
+  const [rem,setRem]=useState(120);          // resterende secs (idle/paused)
+  const [runFull,setRunFull]=useState(120);  // volle duur van de huidige rust
   const [now,setNow]=useState(Date.now());
-  const [done,setDone]=useState(false);
   const [sets,setSets]=useState(0);
   const beepRef=React.useRef(null);
   const firedRef=React.useRef(false);
@@ -550,47 +611,54 @@ function RestTimer(){
   function playBeep(){ const a=ensureBeep(); try{ a.currentTime=0; a.volume=1; const p=a.play(); if(p&&p.catch) p.catch(()=>{}); }catch(e){} }
 
   useEffect(()=>{
-    if(endAt==null) return;
+    if(phase!=="running") return;
     const id=setInterval(()=>setNow(Date.now()),200);
     return ()=>clearInterval(id);
-  },[endAt]);
+  },[phase]);
 
-  const remaining = endAt!=null ? Math.max(0, Math.round((endAt-now)/1000)) : dur;
-  const running = endAt!=null && remaining>0;
+  const remaining = phase==="running" ? Math.max(0, Math.round((endAt-now)/1000))
+                  : phase==="done" ? 0 : rem;
 
   useEffect(()=>{
-    if(endAt!=null && remaining===0 && !firedRef.current){
-      firedRef.current=true; setDone(true);
-      playBeep();
+    if(phase==="running" && remaining===0 && !firedRef.current){
+      firedRef.current=true; setPhase("done"); playBeep();
       if(navigator.vibrate){ try{ navigator.vibrate([250,120,250]); }catch(e){} }
     }
-  },[remaining,endAt]);
+  },[remaining,phase]);
 
   const tap=()=>{
-    unlockBeep();
-    firedRef.current=false; setDone(false);
-    setSets(s=>s+1);
-    setNow(Date.now()); setEndAt(Date.now()+dur*1000);
+    if(phase==="running"){                       // 1e tik: stop op dit punt
+      setRem(remaining); setEndAt(null); setPhase("paused");
+    } else if(phase==="paused"){                 // volgende tik: verder tellen
+      const t=Date.now(); setNow(t); setEndAt(t+rem*1000); setPhase("running");
+    } else {                                     // idle/klaar: nieuwe rust + set tellen
+      unlockBeep(); firedRef.current=false;
+      const t=Date.now(); setNow(t); setEndAt(t+dur*1000); setRunFull(dur); setRem(dur);
+      setSets(s=>s+1); setPhase("running");
+    }
   };
-  const reset=()=>{ setSets(0); setEndAt(null); setDone(false); firedRef.current=false; };
+  const reset=()=>{ setSets(0); setPhase("idle"); setEndAt(null); setRem(dur); setRunFull(dur); firedRef.current=false; };
   const adjust=(delta)=>{
     const d2=Math.max(30, Math.min(600, dur+delta));
     setDur(d2);
-    if(running){ firedRef.current=false; setDone(false); setNow(Date.now()); setEndAt(Date.now()+d2*1000); }
+    if(phase!=="running"){ setPhase("idle"); setEndAt(null); setRem(d2); setRunFull(d2); firedRef.current=false; }
   };
 
   const mm=Math.floor(remaining/60), ss=remaining%60;
   const timeStr=mm+":"+String(ss).padStart(2,"0");
-  const label = sets===0 ? "Tik na je 1e set" : done ? "Rust klaar — tik = volgende set" : running ? "Rusten — tik = volgende set" : "Tik na je set";
-  const pct = endAt!=null ? Math.max(0,(remaining/dur)*100) : 100;
+  const label = phase==="running" ? "Rusten — tik = stop"
+              : phase==="paused" ? "Gepauzeerd — tik = verder"
+              : phase==="done" ? "Rust klaar — tik na je volgende set"
+              : sets===0 ? "Tik na je 1e set" : "Tik voor je volgende rust";
+  const pct = Math.max(0, Math.min(100, (remaining/runFull)*100));
 
   return (
-    <div className={"resttimer"+(done?" done":"")}>
+    <div className={"resttimer"+(phase==="done"?" done":"")+(phase==="paused"?" paused":"")}>
       <div className="rt-controls">
         <button className="rt-adj" onClick={()=>adjust(-15)} aria-label="15 seconden minder">−15</button>
         <button className="rt-adj" onClick={()=>adjust(15)} aria-label="15 seconden meer">+15</button>
         <span className="rt-count">{sets} {sets===1?"set":"sets"} gedaan</span>
-        <button className="rt-reset" onClick={reset} aria-label="Setteller resetten">↺ Reset</button>
+        <button className="rt-reset" onClick={reset} aria-label="Timer en teller resetten">↺ Reset</button>
       </div>
       <button className="rt-main" onClick={tap}>
         <span className="rt-time">{timeStr}</span>
@@ -616,11 +684,10 @@ function ExerciseCard({ex,week,session,logs,checked,muscle,onLog,onDel,onToggle}
   const maxLogged=todays.reduce((m,t)=>Math.max(m,t.set_number),0);
   const rowCount=Math.max(target+extra, maxLogged);
   const upd=(n,f,v)=>setDraft(d=>({...d,[n]:{...(d[n]||{}),[f]:v}}));
-  const save=(n)=>{
-    const d=draft[n]||{};
-    const w=parseFloat(d.weight!=null&&d.weight!==""?d.weight:(sug??""));
-    const r=parseInt(d.reps,10);
-    const ri=d.rir!=null&&d.rir!==""?parseInt(d.rir,10):rirDefault;
+  const save=(n,wStr,rStr,riStr)=>{
+    const w=parseNum(wStr);
+    const r=parseInt(rStr,10);
+    const ri=(riStr!=null&&String(riStr)!=="")?parseInt(riStr,10):rirDefault;
     if(isNaN(w)||isNaN(r)){ alert("Vul gewicht en reps in."); return; }
     onLog(ex,n,w,r,ri); setDraft(x=>({...x,[n]:{}}));
   };
@@ -653,13 +720,17 @@ function ExerciseCard({ex,week,session,logs,checked,muscle,onLog,onDel,onToggle}
               </div>
             );
             const d=draft[n]||{};
+            const pset=prev.find(s=>s.set_number===n);
+            const defW = d.weight!==undefined ? d.weight : (pset?fmt(pset.weight):"");
+            const defR = d.reps!==undefined ? d.reps : (pset?String(pset.reps):"");
+            const defRir = d.rir!==undefined ? d.rir : (pset?String(pset.rir):String(rirDefault));
             return (
               <div className="setrow" key={n}>
                 <span className="sn">{n}{n>target?" +":""}</span>
-                <input inputMode="decimal" placeholder={sug!=null?fmt(sug):"kg"} value={d.weight??""} onChange={e=>upd(n,"weight",e.target.value)} aria-label="gewicht"/>
-                <input inputMode="numeric" placeholder={String(ex.rep_min)} value={d.reps??""} onChange={e=>upd(n,"reps",e.target.value)} aria-label="reps"/>
-                <input inputMode="numeric" placeholder={String(rirDefault)} value={d.rir??""} onChange={e=>upd(n,"rir",e.target.value)} aria-label="rir"/>
-                <button className="savebtn" onClick={()=>save(n)}>Log</button>
+                <input inputMode="decimal" placeholder={sug!=null?fmt(sug):"kg"} value={defW} onChange={e=>upd(n,"weight",e.target.value)} aria-label="gewicht"/>
+                <input inputMode="numeric" placeholder={String(ex.rep_min)} value={defR} onChange={e=>upd(n,"reps",e.target.value)} aria-label="reps"/>
+                <input inputMode="numeric" placeholder={String(rirDefault)} value={defRir} onChange={e=>upd(n,"rir",e.target.value)} aria-label="rir"/>
+                <button className="savebtn" onClick={()=>save(n,defW,defR,defRir)}>Log</button>
               </div>
             );
           })}
@@ -846,8 +917,9 @@ function Gewicht({bw,onLog,onDel}){
   const data=bw.map(b=>({label:b.date.slice(8,10)+"/"+b.date.slice(5,7),value:Number(b.weight)}));
   const recent=[...bw].reverse();
   const fmtD=s=>{ const d=new Date(s+"T00:00:00"); return d.toLocaleDateString("nl-NL",{weekday:"short",day:"numeric",month:"short"}); };
+  const fmtT=iso=>{ if(!iso) return ""; try{ return new Date(iso).toLocaleTimeString("nl-NL",{hour:"2-digit",minute:"2-digit"}); }catch(e){ return ""; } };
 
-  const save=()=>{ const w=parseFloat(val); if(isNaN(w)){ alert("Vul een gewicht in."); return; } onLog(w); };
+  const save=()=>{ const w=parseNum(val); if(isNaN(w)){ alert("Vul een gewicht in."); return; } onLog(w); };
 
   return (
     <>
@@ -873,7 +945,7 @@ function Gewicht({bw,onLog,onDel}){
         ? <p className="section-sub">Nog geen metingen. Tik hierboven op “Weeg in”.</p>
         : recent.map(b=>(
             <div className="bwrow" key={b.id}>
-              <span className="bw-date">{fmtD(b.date)}</span>
+              <span className="bw-date">{fmtD(b.date)}<span className="bw-time"> · {fmtT(b.logged_at)}</span></span>
               <span className="bw-val">{fmt(b.weight)} kg</span>
               <button className="del" onClick={()=>onDel(b.id)} aria-label="Verwijder meting">✕</button>
             </div>
@@ -883,6 +955,125 @@ function Gewicht({bw,onLog,onDel}){
 }
 
 /* ---------- Schema import / export ---------- */
+/* ---------- Voeding ---------- */
+function Voeding({recipes,foods,db,reload,onAdd,onToggle,onPortions,onDel,onDelRecipe}){
+  const [pick,setPick]=useState("");
+  const [showImp,setShowImp]=useState(false);
+  const [showLib,setShowLib]=useState(false);
+  const [text,setText]=useState("");
+  const [msg,setMsg]=useState(null);
+  const fileRef=React.useRef(null);
+
+  const eaten=foods.filter(f=>f.checked);
+  const sum=(arr,k)=>arr.reduce((t,f)=>t+Number(f[k])*Number(f.portions),0);
+  const cal=Math.round(sum(eaten,"calories")), prot=Math.round(sum(eaten,"protein"));
+  const carb=Math.round(sum(eaten,"carbs")), fat=Math.round(sum(eaten,"fat")), fiber=Math.round(sum(eaten,"fiber"));
+  const calPlan=Math.round(sum(foods,"calories")), protPlan=Math.round(sum(foods,"protein"));
+  const calPct=Math.min(100,cal/CAL_TARGET*100), protPct=Math.min(100,prot/PROTEIN_TARGET*100);
+  const add=()=>{ const r=recipes.find(x=>x.id===Number(pick)); if(r) onAdd(r); };
+
+  const example = '{\n  "name": "Havermout met banaan",\n  "emoji": "🥣",\n  "category": "Ontbijt",\n  "portions": 1,\n  "nutrition": { "per": "portie",\n    "calories": 450, "protein": 20,\n    "carbs": 70, "fat": 10, "fiber": 8 }\n}';
+
+  async function importText(txt){
+    setMsg(null);
+    let p; try{ p=JSON.parse(txt); }catch(e){ setMsg({t:"Ongeldige JSON: "+e.message,ok:false}); return; }
+    const arr = Array.isArray(p) ? p : (p.recipes&&Array.isArray(p.recipes) ? p.recipes : [p]);
+    const rows=[];
+    for(const r of arr){
+      if(!r || !r.name){ setMsg({t:'Elk recept heeft een "name" nodig.',ok:false}); return; }
+      const n=r.nutrition||{};
+      rows.push({name:r.name, emoji:r.emoji||"🍽️", category:r.category||null, portions:r.portions||1,
+        calories:n.calories||0, protein:n.protein||0, carbs:n.carbs||0, fat:n.fat||0, fiber:n.fiber||0, data:r});
+    }
+    const ins=await db.from("recipes").upsert(rows,{onConflict:"name"});
+    if(ins.error){ setMsg({t:"Import mislukt: "+ins.error.message,ok:false}); return; }
+    setMsg({t:rows.length+" recept(en) geïmporteerd.",ok:true}); setText(""); await reload();
+  }
+  const doImport=()=>importText(text);
+  function onFile(e){
+    const file=e.target.files&&e.target.files[0];
+    if(!file){ return; }
+    const reader=new FileReader();
+    reader.onload=()=>importText(String(reader.result));
+    reader.onerror=()=>setMsg({t:"Bestand kon niet gelezen worden.",ok:false});
+    reader.readAsText(file);
+    e.target.value="";
+  }
+
+  return (
+    <>
+      <div className="nutcard">
+        <div className="nut-big"><span className="nv">{cal}</span><span className="nu"> / {CAL_TARGET} kcal</span></div>
+        <div className="nutbar"><i style={{width:calPct+"%"}}/></div>
+        <div className="nut-big" style={{marginTop:12}}><span className="nv">{prot}</span><span className="nu"> / {PROTEIN_TARGET} g eiwit</span></div>
+        <div className="nutbar prot"><i style={{width:protPct+"%"}}/></div>
+        <div className="macros"><span>Koolh <b>{carb}g</b></span><span>Vet <b>{fat}g</b></span><span>Vezels <b>{fiber}g</b></span></div>
+        {foods.length>0 && <div className="planline">Gepland vandaag: {calPlan} kcal · {protPlan} g eiwit</div>}
+      </div>
+
+      <h3 className="section-h">Vandaag</h3>
+      {foods.length===0
+        ? <p className="section-sub">Nog niets toegevoegd. Kies hieronder een recept en tik “Toevoegen”, en vink af wat je hebt gegeten — alleen afgevinkte items tellen mee als binnengekregen.</p>
+        : foods.map(f=>(
+          <div className={"food-item"+(f.checked?" on":"")} key={f.id}>
+            <div className="fi-top">
+              <button className={"tick"+(f.checked?" on":"")} onClick={()=>onToggle(f)} aria-label={f.checked?"Ontvinken":"Afvinken"}>✓</button>
+              <span className="fi-name">{f.emoji?f.emoji+" ":""}{f.name}</span>
+              <button className="del" onClick={()=>onDel(f.id)} aria-label="Verwijder">✕</button>
+            </div>
+            <div className="fi-bot">
+              <span className="fi-macros">{Math.round(f.calories*f.portions)} kcal · {Math.round(f.protein*f.portions)}g eiwit</span>
+              <div className="fi-port">
+                <button onClick={()=>onPortions(f,-0.5)} aria-label="Minder porties">−</button>
+                <span>{fmt(f.portions)}×</span>
+                <button onClick={()=>onPortions(f,0.5)} aria-label="Meer porties">+</button>
+              </div>
+            </div>
+          </div>
+        ))}
+
+      <h3 className="section-h">Toevoegen</h3>
+      {recipes.length===0
+        ? <p className="section-sub">Je hebt nog geen recepten. Importeer ze onderaan.</p>
+        : <div className="addfood">
+            <select value={pick} onChange={e=>setPick(e.target.value)}>
+              <option value="">Kies een recept…</option>
+              {recipes.map(r=> <option key={r.id} value={r.id}>{(r.emoji?r.emoji+" ":"")+r.name} — {Math.round(r.calories)} kcal</option>)}
+            </select>
+            <button className="btn btn-primary" onClick={add}>+ Toevoegen</button>
+          </div>}
+
+      <button className="infobtn" style={{marginTop:20}} onClick={()=>setShowLib(v=>!v)}>{showLib?"▲ Bibliotheek verbergen":"📚 Receptenbibliotheek ("+recipes.length+")"}</button>
+      {showLib && (
+        <div className="lib">
+          {recipes.length===0 ? <p className="section-sub" style={{marginTop:10}}>Nog geen recepten.</p>
+            : recipes.map(r=>(
+              <div className="lib-row" key={r.id}>
+                <span className="lib-name">{(r.emoji?r.emoji+" ":"")+r.name}</span>
+                <span className="lib-mac">{Math.round(r.calories)} kcal · {Math.round(r.protein)}g</span>
+                <button className="del" onClick={()=>onDelRecipe(r.id)} aria-label="Verwijder recept">✕</button>
+              </div>
+            ))}
+        </div>
+      )}
+
+      <button className="infobtn" style={{marginTop:10}} onClick={()=>setShowImp(v=>!v)}>{showImp?"▲ Import verbergen":"⬇ Recepten importeren"}</button>
+      {showImp && (
+        <div className="imp" style={{marginTop:8}}>
+          <input ref={fileRef} type="file" accept=".json,application/json" style={{display:"none"}} onChange={onFile}/>
+          <button className="btn btn-primary" style={{width:"100%"}} onClick={()=>fileRef.current&&fileRef.current.click()}>📄 Kies JSON-bestand</button>
+          <p className="section-sub" style={{margin:"12px 2px 6px"}}>… of plak de JSON handmatig:</p>
+          <textarea placeholder="Plak hier je recept-JSON…" value={text} onChange={e=>setText(e.target.value)}/>
+          <div className="row"><button className="btn btn-ghost" onClick={doImport}>Importeer geplakte tekst</button></div>
+          {msg && <div className={"msg "+(msg.ok?"ok":"bad")}>{msg.t}</div>}
+          <p className="section-sub" style={{marginTop:12}}>Eén recept, of meerdere in een lijst <span className="mono">[ … ]</span>. De voedingswaarden zijn per portie. Voorbeeld:</p>
+          <pre>{example}</pre>
+        </div>
+      )}
+    </>
+  );
+}
+
 function SchemaTab({muscles,exercises,db,reload}){
   const [text,setText]=useState("");
   const [msg,setMsg]=useState(null);
